@@ -30,6 +30,7 @@ interface IStorage {
   getVideo(id: number): Promise<Video | undefined>;
   getPopularVideos(limit?: number): Promise<Video[]>;
   getLatestVideos(limit?: number): Promise<Video[]>;
+  getRelatedVideos(videoId: number, limit?: number): Promise<Video[]>;
   getAllVideosForAdmin(page: number, limit: number): Promise<Video[]>;
   createVideo(insertVideo: InsertVideo): Promise<Video>;
   updateVideo(id: number, updateVideo: UpdateVideo): Promise<Video | undefined>;
@@ -154,6 +155,49 @@ export class DatabaseStorage implements IStorage {
       .where(eq(videos.isActive, true))
       .orderBy(desc(videos.datePosted))
       .limit(limit);
+  }
+
+  async getRelatedVideos(videoId: number, limit = 4): Promise<Video[]> {
+    // Get the current video to find related videos by category
+    const currentVideo = await this.getVideo(videoId);
+    
+    if (!currentVideo) {
+      return [];
+    }
+
+    // Get random videos from the same category, excluding the current video
+    const relatedVideos = await db
+      .select()
+      .from(videos)
+      .where(
+        and(
+          eq(videos.isActive, true),
+          eq(videos.category, currentVideo.category),
+          sql`${videos.id} != ${videoId}`
+        )
+      )
+      .orderBy(sql`RANDOM()`)
+      .limit(limit);
+
+    // If not enough videos in same category, fill with random videos from other categories
+    if (relatedVideos.length < limit) {
+      const additionalVideos = await db
+        .select()
+        .from(videos)
+        .where(
+          and(
+            eq(videos.isActive, true),
+            sql`${videos.id} != ${videoId}`,
+            sql`${videos.category} != ${currentVideo.category}`
+          )
+        )
+        .orderBy(sql`RANDOM()`)
+        .limit(limit - relatedVideos.length);
+
+      relatedVideos.push(...additionalVideos);
+    }
+
+    return relatedVideos;
   }
 
   async getAllVideosForAdmin(page: number, limit: number): Promise<Video[]> {

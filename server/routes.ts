@@ -74,6 +74,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get related videos
+  app.get("/api/videos/:id/related", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const limit = parseInt(req.query.limit as string) || 4;
+      const relatedVideos = await storage.getRelatedVideos(id, limit);
+      res.json(relatedVideos);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch related videos" });
+    }
+  });
+
   // Track video view
   app.post("/api/videos/:id/view", async (req, res) => {
     try {

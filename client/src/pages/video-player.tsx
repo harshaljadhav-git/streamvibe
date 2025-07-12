@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { useEffect } from "react";
 import VideoPlayer from "@/components/ui/video-player";
+import VideoCard from "@/components/ui/video-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, Tag, ArrowLeft, ChevronRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Video } from "@shared/schema";
@@ -22,6 +24,18 @@ export default function VideoPlayerPage() {
       const response = await fetch(`/api/videos/${videoId}`);
       if (!response.ok) {
         throw new Error("Video not found");
+      }
+      return response.json();
+    },
+    enabled: !!videoId,
+  });
+
+  const { data: relatedVideos, isLoading: isLoadingRelated } = useQuery<Video[]>({
+    queryKey: ["/api/videos", videoId, "related"],
+    queryFn: async () => {
+      const response = await fetch(`/api/videos/${videoId}/related`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch related videos");
       }
       return response.json();
     },
@@ -45,6 +59,21 @@ export default function VideoPlayerPage() {
 
   const handleViewTracked = () => {
     trackViewMutation.mutate();
+  };
+
+  const handleVideoClick = (video: Video) => {
+    // Open video in new tab
+    window.open(`/video/${video.id}`, '_blank');
+  };
+
+  const handleGoBack = () => {
+    // Use browser history to go back
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      // If no history, go to videos page
+      window.location.href = '/videos';
+    }
   };
 
   useEffect(() => {
@@ -86,6 +115,18 @@ export default function VideoPlayerPage() {
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="space-y-6">
+        {/* Back Navigation */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={handleGoBack}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Go Back
+          </Button>
+        </div>
+
         <VideoPlayer
           videoUrl={video.videoUrl}
           title={video.title}
@@ -126,6 +167,45 @@ export default function VideoPlayerPage() {
                   ))}
                 </div>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Related Videos Section */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold flex items-center gap-2">
+                <ChevronRight className="h-5 w-5" />
+                Related Videos
+              </h3>
+            </div>
+            
+            {isLoadingRelated ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, index) => (
+                  <div key={index} className="space-y-2">
+                    <Skeleton className="h-32 w-full rounded-lg" />
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : relatedVideos && relatedVideos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {relatedVideos.map((relatedVideo) => (
+                  <div key={relatedVideo.id} className="transform transition-transform hover:scale-105">
+                    <VideoCard
+                      video={relatedVideo}
+                      onClick={() => handleVideoClick(relatedVideo)}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                No related videos found
+              </p>
             )}
           </CardContent>
         </Card>
